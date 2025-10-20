@@ -1,0 +1,46 @@
+# Boolean OR
+
+Boolean algebra is a branch of mathematics that deals with logical values and operations. We will be focusing on the parts of Boolean Algebra that are most important in programming.
+
+In Python there is a keyword called and that is used to perform a logical AND operation.
+
+Consider the following code:
+```
+a = True
+b = True
+
+print(a and b)  # Output: True
+```
+
+The output is True because both  of the operands is True. It's not that different from human language. Suppose we have two people, Alice and Bob. If Alice "Likes ice cream" and Bob "like ice cream", then the statement "Alice and Bob likes ice cream" is true because both of them likes ice cream.
+
+For all possible pairs of values of A and B, the truth table for the OR operation is as follows:
+
+| A     | B     | A and B |
+|-------|-------|--------|
+| False | False | False  |
+| True  | True  | True   |
+| False | True  | False  |
+| True  | False | False  |
+
+
+To summarize, the OR operation returns True if at least one of the operands is True. This holds even if we have more than two operands:
+```
+a, b, c = True, True, True
+print(a and b and c)  # Output: True
+```
+
+### Challenge
+
+In the code editor, there are 4 variables, a, b, c, and d. 
+
+```
+a, b, c, d = False, False, True, True
+```
+
+Print the following:
+
+The logic AND of a and b.
+The logic AND of b and c.
+The logic AND of c and d.
+The logic AND of a, b, c, and d.
