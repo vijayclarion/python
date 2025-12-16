@@ -1,0 +1,59 @@
+# Example Dockerfile for .NET 9 Application
+# This Dockerfile follows best practices for production deployments
+# Note: Migrations are NOT run in this container - they are handled separately in CI/CD
+
+# Build stage
+FROM mcr.microsoft.com/dotnet/sdk:9.0 AS build
+WORKDIR /src
+
+# Copy csproj and restore dependencies
+# This layer is cached unless dependencies change
+COPY ["src/YourProject/YourProject.csproj", "src/YourProject/"]
+RUN dotnet restore "src/YourProject/YourProject.csproj"
+
+# Copy everything else and build
+COPY . .
+WORKDIR "/src/src/YourProject"
+RUN dotnet build "YourProject.csproj" -c Release -o /app/build
+
+# Publish stage
+FROM build AS publish
+RUN dotnet publish "YourProject.csproj" -c Release -o /app/publish /p:UseAppHost=false
+
+# Runtime stage
+FROM mcr.microsoft.com/dotnet/aspnet:9.0 AS final
+
+# Create non-root user for security
+RUN groupadd -r appuser && useradd -r -g appuser appuser
+
+WORKDIR /app
+
+# Copy published application
+COPY --from=publish /app/publish .
+
+# Change ownership to non-root user
+RUN chown -R appuser:appuser /app
+
+# Switch to non-root user
+USER appuser
+
+# Expose port (adjust as needed)
+EXPOSE 8080
+
+# Environment variables
+ENV ASPNETCORE_URLS=http://+:8080
+ENV ASPNETCORE_ENVIRONMENT=Production
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=3s --start-period=60s --retries=3 \
+  CMD curl -f http://localhost:8080/health || exit 1
+
+# DO NOT run migrations here!
+# Migrations should be handled by CI/CD pipeline before deployment
+# This ensures:
+# - No race conditions between multiple container instances
+# - Application doesn't need elevated database permissions
+# - Clear separation of concerns
+# - Better error handling and rollback capabilities
+
+ENTRYPOINT ["dotnet", "YourProject.dll"]
