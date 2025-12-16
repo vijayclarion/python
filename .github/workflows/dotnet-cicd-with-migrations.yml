@@ -1,0 +1,297 @@
+name: .NET CI/CD with EF Core Migrations
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Target environment'
+        required: true
+        default: 'preprod'
+        type: choice
+        options:
+          - preprod
+          - production
+
+env:
+  DOTNET_VERSION: '9.0.x'
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+
+jobs:
+  build-and-test:
+    name: Build and Test
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: ${{ env.DOTNET_VERSION }}
+        
+    - name: Restore dependencies
+      run: dotnet restore
+      
+    - name: Build
+      run: dotnet build --no-restore --configuration Release
+      
+    - name: Run unit tests
+      run: dotnet test --no-build --configuration Release --verbosity normal --collect:"XPlat Code Coverage"
+      
+    - name: Upload test results
+      uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: test-results
+        path: '**/TestResults/**'
+        
+    - name: Generate migration SQL scripts
+      run: |
+        # Generate idempotent SQL scripts for all migrations
+        # This creates SQL that can be safely run multiple times
+        dotnet ef migrations script --idempotent --output migrations.sql --project ./src/YourProject.csproj
+        
+    - name: Upload migration scripts
+      uses: actions/upload-artifact@v4
+      with:
+        name: migration-scripts
+        path: migrations.sql
+        retention-days: 30
+
+  build-docker-image:
+    name: Build Docker Image
+    runs-on: ubuntu-latest
+    needs: build-and-test
+    permissions:
+      contents: read
+      packages: write
+      
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+      
+    - name: Log in to Container Registry
+      uses: docker/login-action@v3
+      with:
+        registry: ${{ env.REGISTRY }}
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+        
+    - name: Extract metadata
+      id: meta
+      uses: docker/metadata-action@v5
+      with:
+        images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+        tags: |
+          type=ref,event=branch
+          type=ref,event=pr
+          type=semver,pattern={{version}}
+          type=semver,pattern={{major}}.{{minor}}
+          type=sha,prefix={{branch}}-
+          
+    - name: Build and push Docker image
+      uses: docker/build-push-action@v5
+      with:
+        context: .
+        push: true
+        tags: ${{ steps.meta.outputs.tags }}
+        labels: ${{ steps.meta.outputs.labels }}
+        cache-from: type=gha
+        cache-to: type=gha,mode=max
+        # Do NOT run migrations in the Docker image
+        # Migrations are handled separately in dedicated deployment jobs
+
+  # Migration job for PreProd environment
+  migrate-database-preprod:
+    name: Migrate Database (PreProd)
+    runs-on: ubuntu-latest
+    needs: [build-and-test, build-docker-image]
+    if: github.ref == 'refs/heads/develop' || github.event.inputs.environment == 'preprod'
+    environment:
+      name: preprod
+      url: https://preprod.yourapp.com
+      
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: ${{ env.DOTNET_VERSION }}
+        
+    - name: Install EF Core tools
+      run: dotnet tool install --global dotnet-ef
+      
+    - name: Download migration scripts
+      uses: actions/download-artifact@v4
+      with:
+        name: migration-scripts
+        
+    - name: Backup database (optional but recommended)
+      run: |
+        echo "Creating database backup before migration..."
+        # Add your backup command here
+        # Example for SQL Server:
+        # sqlcmd -S ${{ secrets.PREPROD_SQL_SERVER }} -U ${{ secrets.PREPROD_SQL_USER }} -P ${{ secrets.PREPROD_SQL_PASSWORD }} \
+        #   -Q "BACKUP DATABASE [YourDatabase] TO DISK = '/backups/YourDatabase_$(date +%Y%m%d_%H%M%S).bak'"
+        
+    - name: Run database migrations
+      run: |
+        # Option 1: Using EF Core CLI (Recommended for most scenarios)
+        dotnet ef database update --project ./src/YourProject.csproj --connection "${{ secrets.PREPROD_CONNECTION_STRING }}"
+        
+        # Option 2: Using generated SQL script (Alternative approach)
+        # This gives you more control and allows review before execution
+        # sqlcmd -S ${{ secrets.PREPROD_SQL_SERVER }} -d ${{ secrets.PREPROD_DATABASE }} \
+        #   -U ${{ secrets.PREPROD_SQL_USER }} -P ${{ secrets.PREPROD_SQL_PASSWORD }} \
+        #   -i migrations.sql
+        
+    - name: Apply seed data (if needed)
+      if: github.event_name == 'workflow_dispatch'
+      run: |
+        # Run custom seed data script
+        dotnet run --project ./src/YourProject.csproj -- seed --environment PreProd --connection "${{ secrets.PREPROD_CONNECTION_STRING }}"
+        
+    - name: Verify migration
+      run: |
+        # Verify the migration was successful
+        dotnet ef migrations list --project ./src/YourProject.csproj --connection "${{ secrets.PREPROD_CONNECTION_STRING }}"
+        echo "✓ Migration completed successfully"
+        
+    - name: Notify on failure
+      if: failure()
+      run: |
+        echo "::error::Database migration failed for PreProd environment"
+        # Add notification logic here (Slack, Teams, email, etc.)
+
+  # Deploy to PreProd after successful migration
+  deploy-preprod:
+    name: Deploy to PreProd
+    runs-on: ubuntu-latest
+    needs: migrate-database-preprod
+    environment:
+      name: preprod
+      url: https://preprod.yourapp.com
+      
+    steps:
+    - name: Deploy Docker image
+      run: |
+        echo "Deploying to PreProd environment..."
+        # Add your deployment commands here
+        # Examples:
+        # - Azure Container Apps: az containerapp update ...
+        # - Kubernetes: kubectl set image deployment/yourapp ...
+        # - Docker Swarm: docker service update ...
+        # - AWS ECS: aws ecs update-service ...
+        
+    - name: Health check
+      run: |
+        # Wait for application to start and verify health
+        sleep 30
+        curl -f https://preprod.yourapp.com/health || exit 1
+        echo "✓ Application is healthy"
+
+  # Migration job for Production environment
+  migrate-database-production:
+    name: Migrate Database (Production)
+    runs-on: ubuntu-latest
+    needs: [build-and-test, build-docker-image]
+    if: github.ref == 'refs/heads/main' || github.event.inputs.environment == 'production'
+    environment:
+      name: production
+      url: https://yourapp.com
+      
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: ${{ env.DOTNET_VERSION }}
+        
+    - name: Install EF Core tools
+      run: dotnet tool install --global dotnet-ef
+      
+    - name: Download migration scripts
+      uses: actions/download-artifact@v4
+      with:
+        name: migration-scripts
+        
+    - name: Create database backup
+      run: |
+        echo "Creating production database backup..."
+        # CRITICAL: Always backup production database before migrations
+        # Example for SQL Server:
+        # sqlcmd -S ${{ secrets.PROD_SQL_SERVER }} -U ${{ secrets.PROD_SQL_USER }} -P ${{ secrets.PROD_SQL_PASSWORD }} \
+        #   -Q "BACKUP DATABASE [YourDatabase] TO DISK = '/backups/YourDatabase_$(date +%Y%m%d_%H%M%S).bak' WITH COPY_ONLY"
+        
+    - name: Review migration script (manual gate)
+      if: github.event_name == 'workflow_dispatch'
+      run: |
+        echo "Migration script contents:"
+        cat migrations.sql
+        echo "Review the migration script above before proceeding."
+        # This step provides visibility into what will be executed
+        
+    - name: Run database migrations
+      run: |
+        echo "Running production database migrations..."
+        dotnet ef database update --project ./src/YourProject.csproj --connection "${{ secrets.PROD_CONNECTION_STRING }}"
+        
+    - name: Apply seed data (if needed)
+      if: github.event_name == 'workflow_dispatch'
+      run: |
+        # Run custom seed data script for production
+        dotnet run --project ./src/YourProject.csproj -- seed --environment Production --connection "${{ secrets.PROD_CONNECTION_STRING }}"
+        
+    - name: Verify migration
+      run: |
+        # Verify the migration was successful
+        dotnet ef migrations list --project ./src/YourProject.csproj --connection "${{ secrets.PROD_CONNECTION_STRING }}"
+        echo "✓ Migration completed successfully"
+        
+    - name: Notify on failure
+      if: failure()
+      run: |
+        echo "::error::Database migration failed for Production environment"
+        # Add notification logic here (Slack, Teams, PagerDuty, etc.)
+        # This should trigger immediate alerting for production issues
+
+  # Deploy to Production after successful migration
+  deploy-production:
+    name: Deploy to Production
+    runs-on: ubuntu-latest
+    needs: migrate-database-production
+    environment:
+      name: production
+      url: https://yourapp.com
+      
+    steps:
+    - name: Deploy Docker image
+      run: |
+        echo "Deploying to Production environment..."
+        # Add your production deployment commands here
+        
+    - name: Health check
+      run: |
+        # Wait for application to start and verify health
+        sleep 30
+        curl -f https://yourapp.com/health || exit 1
+        echo "✓ Application is healthy"
+        
+    - name: Smoke tests
+      run: |
+        # Run critical smoke tests to verify deployment
+        echo "Running smoke tests..."
+        # Add your smoke test commands here
