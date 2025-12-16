@@ -31,6 +31,7 @@
 | File | Purpose |
 |------|---------|
 | `.github/workflows/dotnet-cicd-with-migrations.yml` | Complete CI/CD workflow |
+| `docs/cicd/MIGRATION-APPROACHES.md` | **NEW:** Developer vs CI/CD script generation |
 | `docs/cicd/EF-CORE-MIGRATIONS-BEST-PRACTICES.md` | Best practices + 10+ authoritative references |
 | `docs/cicd/IMPLEMENTATION-GUIDE.md` | Step-by-step implementation (5 phases) |
 | `docs/cicd/TROUBLESHOOTING.md` | 10+ common issues and solutions |
@@ -42,7 +43,26 @@
 
 ---
 
+## ❓ Which Approach to Use?
+
+**Question:** Should developers create migration scripts or should CI/CD generate them?
+
+**Answer:** Read `docs/cicd/MIGRATION-APPROACHES.md` for detailed comparison.
+
+**Quick decision:**
+- **Most teams:** Use CI/CD-Generated (current implementation) ✓
+- **Regulated industries, DBA review required:** Use Developer-Generated
+- **Want flexibility:** Use Hybrid approach
+
+---
+
 ## 🚀 Quick Start (5 Minutes)
+
+### 0. Choose Your Approach (Optional)
+```
+If unsure, stick with the current CI/CD-Generated approach.
+See: docs/cicd/MIGRATION-APPROACHES.md for details.
+```
 
 ### 1. Set Up Secrets
 ```

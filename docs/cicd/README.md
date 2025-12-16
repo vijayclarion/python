@@ -9,6 +9,7 @@ This directory contains comprehensive documentation and examples for implementin
 ### Documentation
 
 - **[EF-CORE-MIGRATIONS-BEST-PRACTICES.md](./EF-CORE-MIGRATIONS-BEST-PRACTICES.md)** - Comprehensive guide on EF Core migrations in CI/CD with authoritative references
+- **[MIGRATION-APPROACHES.md](./MIGRATION-APPROACHES.md)** - Compare Developer-Generated vs CI/CD-Generated migration scripts (read this first if unsure which approach to use)
 - **[IMPLEMENTATION-GUIDE.md](./IMPLEMENTATION-GUIDE.md)** - Step-by-step implementation instructions
 - **[TROUBLESHOOTING.md](./TROUBLESHOOTING.md)** - Common issues and solutions
 - **[SECURITY-CHECKLIST.md](./SECURITY-CHECKLIST.md)** - Security best practices checklist
@@ -21,15 +22,26 @@ This directory contains comprehensive documentation and examples for implementin
 
 ## Quick Start
 
-### 1. Review the Best Practices Document
+### 1. Choose Your Migration Approach
 
-Start by reading [EF-CORE-MIGRATIONS-BEST-PRACTICES.md](./EF-CORE-MIGRATIONS-BEST-PRACTICES.md) to understand:
+**Important:** First, decide whether you want developers to create and commit migration SQL scripts, or have CI/CD generate them automatically.
+
+📖 Read [MIGRATION-APPROACHES.md](./MIGRATION-APPROACHES.md) to understand:
+- **Developer-Generated Scripts** - Developers commit SQL to repository (better for DBA review, compliance)
+- **CI/CD-Generated Scripts** - Pipeline generates SQL automatically (faster, current implementation)
+- **Hybrid Approach** - Combine both for flexibility
+
+**The current workflow uses CI/CD-Generated Scripts** (recommended for most teams).
+
+### 2. Review the Best Practices Document
+
+Then read [EF-CORE-MIGRATIONS-BEST-PRACTICES.md](./EF-CORE-MIGRATIONS-BEST-PRACTICES.md) to understand:
 - Why separate migration jobs are recommended
 - Security considerations
 - Rollback strategies
 - Authoritative references from Microsoft and industry experts
 
-### 2. Set Up GitHub Secrets
+### 3. Set Up GitHub Secrets
 
 Configure the following secrets in your GitHub repository:
 

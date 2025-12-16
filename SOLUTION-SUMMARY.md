@@ -21,6 +21,13 @@ A production-ready GitHub Actions workflow that implements:
 ### 2. Comprehensive Documentation
 **Location:** `docs/cicd/`
 
+- **[MIGRATION-APPROACHES.md](docs/cicd/MIGRATION-APPROACHES.md)** ⭐ **NEW**
+  - Compare Developer-Generated vs CI/CD-Generated migration scripts
+  - Decision matrix and recommendation guide
+  - Implementation details for both approaches
+  - Hybrid approach explanation
+  - **Read this first if you're unsure which approach to use**
+
 - **[EF-CORE-MIGRATIONS-BEST-PRACTICES.md](docs/cicd/EF-CORE-MIGRATIONS-BEST-PRACTICES.md)**
   - Industry best practices with authoritative references
   - Why separate migrations from deployment

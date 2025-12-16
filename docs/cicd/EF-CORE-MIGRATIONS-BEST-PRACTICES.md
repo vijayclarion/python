@@ -110,6 +110,18 @@ Running migrations separately enables:
 
 ## Implementation Details
 
+### Script Generation: Developer vs CI/CD
+
+Before choosing an execution method, you need to decide **who generates the migration SQL scripts**:
+
+- **CI/CD-Generated Scripts** (Current Implementation) - Pipeline automatically generates scripts during build
+- **Developer-Generated Scripts** - Developers manually create and commit SQL scripts to repository
+- **Hybrid Approach** - Combine both for flexibility
+
+**📖 See [MIGRATION-APPROACHES.md](./MIGRATION-APPROACHES.md) for detailed comparison and guidance on choosing the right approach for your team.**
+
+The current workflow implements **CI/CD-Generated Scripts**, which is recommended for most agile teams. If your organization requires committed SQL scripts for DBA review or compliance, see the Developer-Generated approach in the guide above.
+
 ### Option 1: Using EF Core CLI (Recommended for Most Scenarios)
 
 ```bash
